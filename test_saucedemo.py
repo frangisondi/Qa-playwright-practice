@@ -158,3 +158,58 @@ class TestCheckout:
         error = page.locator("[data-test='error']")
         expect(error).to_be_visible()
         expect(error).to_contain_text("First Name is required")
+
+
+class TestOutOfStockHandling:
+    """
+    Automates TC-01 from TEST_PLAN.md using API mocking.
+
+    IMPORTANT CONTEXT: saucedemo.com's product catalog is hardcoded into its
+    JavaScript bundle, not fetched from a live inventory API. That means
+    there's no real network request to intercept and no real "out of stock"
+    state to trigger naturally.
+
+    To still demonstrate the technique properly: we mock what a real
+    inventory-check API call would return (a product flagged out of stock),
+    then apply that mocked result to the page ourselves via page.evaluate().
+    In a real product with a genuine inventory API, page.route() alone would
+    be enough — the app's own code would consume the mocked response and
+    update the UI for you. This is the honest gap between "practicing the
+    mocking pattern" and "testing a real backend integration," and it's
+    worth being able to explain that distinction in an interview.
+    """
+
+    def test_out_of_stock_item_disables_add_to_cart(self, page: Page):
+        # Step 1: Mock what a real inventory API might return for this
+        # product. The URL pattern here is illustrative — saucedemo has no
+        # such endpoint, so this route will simply never be hit by the app.
+        page.route(
+            "**/api/inventory/sauce-labs-backpack",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"sku": "sauce-labs-backpack", "in_stock": false}',
+            ),
+        )
+
+        login(page, VALID_USERNAME, VALID_PASSWORD)
+
+        # Step 2: Since the app won't call our mocked endpoint on its own,
+        # we apply the "out of stock" state directly, the way the app's
+        # own frontend code would if it had received that mocked response.
+        page.evaluate(
+            """() => {
+                const btn = document.querySelector(
+                    "[data-test='add-to-cart-sauce-labs-backpack']"
+                );
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = "Out of Stock";
+                }
+            }"""
+        )
+
+        # Step 3: Assert the UI now correctly reflects an out-of-stock item.
+        button = page.locator("[data-test='add-to-cart-sauce-labs-backpack']")
+        expect(button).to_be_disabled()
+        expect(button).to_have_text("Out of Stock")

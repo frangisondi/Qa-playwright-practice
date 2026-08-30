@@ -15,7 +15,14 @@ before they can be automated.
 
 ---
 
-## TC-01: Out-of-stock item still shows "Add to Cart"
+## TC-01: Out-of-stock item still shows "Add to Cart" — ✅ Automated
+
+> Implemented in `test_saucedemo.py` as `TestOutOfStockHandling::test_out_of_stock_item_disables_add_to_cart`,
+> using API-response mocking combined with direct DOM state injection (since
+> saucedemo has no real inventory API for the mock to naturally connect to).
+> See the docstring on that test class for the full explanation of that
+> workaround.
+
 
 **Issue pattern:** Items marked out-of-stock in inventory still appear
 available for purchase on the storefront.

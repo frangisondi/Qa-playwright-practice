@@ -76,6 +76,47 @@ class TestAddToCart:
         expect(page.locator(".shopping_cart_badge")).to_have_count(0)
 
 
+class TestPricingAndInventory:
+    """
+    Tests inspired by real recurring support issues: pricing/catalog data
+    bugs that make it to the storefront. On saucedemo.com the catalog is
+    static (no live inventory API), so this class covers what IS testable
+    here at the UI level. See TEST_PLAN.md for the related API-dependent
+    scenarios (out-of-stock display, description accuracy, store-hours
+    checkout) that would need a real backend/inventory API to automate.
+    """
+
+    def test_no_product_is_priced_at_zero(self, page: Page):
+        """
+        Regression check for a $0-item bug: every product on the
+        inventory page should have a price strictly greater than $0.
+        """
+        login(page, VALID_USERNAME, VALID_PASSWORD)
+
+        prices = page.locator(".inventory_item_price").all_text_contents()
+        assert prices, "Expected at least one product price on the page"
+
+        for raw_price in prices:
+            # Prices are rendered like "$29.99"
+            value = float(raw_price.replace("$", "").strip())
+            assert value > 0, f"Found a product priced at ${value:.2f}, expected > $0"
+
+    def test_no_product_has_blank_description(self, page: Page):
+        """
+        Stand-in for the 'incorrect descriptions' pattern: on a real site
+        this would compare rendered text against the source-of-truth API
+        response. Here, we at least assert no product ships with an
+        empty/blank description, which is the simplest version of that bug.
+        """
+        login(page, VALID_USERNAME, VALID_PASSWORD)
+
+        descriptions = page.locator(".inventory_item_desc").all_text_contents()
+        assert descriptions, "Expected at least one product description on the page"
+
+        for desc in descriptions:
+            assert desc.strip() != "", "Found a product with a blank description"
+
+
 class TestCheckout:
     def test_full_checkout_flow_completes(self, page: Page):
         login(page, VALID_USERNAME, VALID_PASSWORD)

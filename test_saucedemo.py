@@ -56,23 +56,39 @@ class TestLogin:
 
 
 class TestAddToCart:
-    def test_add_single_item_to_cart(self, page: Page):
+    # All 6 products on saucedemo, identified by the product-slug used in
+    # their data-test attributes. Used to run the same test once per
+    # product instead of hardcoding just the backpack.
+    ALL_PRODUCTS = [
+        "sauce-labs-backpack",
+        "sauce-labs-bike-light",
+        "sauce-labs-bolt-t-shirt",
+        "sauce-labs-fleece-jacket",
+        "sauce-labs-onesie",
+        "test.allthethings()-t-shirt-(red)",
+    ]
+
+    @pytest.mark.parametrize("product_slug", ALL_PRODUCTS)
+    def test_add_single_item_to_cart(self, page: Page, product_slug: str):
+        """
+        Runs once per product in ALL_PRODUCTS (6 total runs). Confirms
+        every product on the site can be added to the cart, not just one.
+        """
         login(page, VALID_USERNAME, VALID_PASSWORD)
 
-        # Add the first product to the cart
-        page.click("[data-test='add-to-cart-sauce-labs-backpack']")
+        page.click(f"[data-test='add-to-cart-{product_slug}']")
 
-        # Cart badge should now show 1 item
         cart_badge = page.locator(".shopping_cart_badge")
         expect(cart_badge).to_have_text("1")
 
-    def test_remove_item_from_cart(self, page: Page):
+    @pytest.mark.parametrize("product_slug", ALL_PRODUCTS)
+    def test_remove_item_from_cart(self, page: Page, product_slug: str):
+        """Same idea: confirm every product can also be removed cleanly."""
         login(page, VALID_USERNAME, VALID_PASSWORD)
 
-        page.click("[data-test='add-to-cart-sauce-labs-backpack']")
-        page.click("[data-test='remove-sauce-labs-backpack']")
+        page.click(f"[data-test='add-to-cart-{product_slug}']")
+        page.click(f"[data-test='remove-{product_slug}']")
 
-        # Badge disappears entirely when cart is empty
         expect(page.locator(".shopping_cart_badge")).to_have_count(0)
 
 
@@ -144,20 +160,46 @@ class TestCheckout:
         expect(page).to_have_url(f"{BASE_URL}/checkout-complete.html")
         expect(page.locator(".complete-header")).to_have_text("Thank you for your order!")
 
-    def test_checkout_requires_first_name(self, page: Page):
+    @pytest.mark.parametrize(
+        "field_to_leave_blank, expected_error",
+        [
+            ("firstName", "First Name is required"),
+            ("lastName", "Last Name is required"),
+            ("postalCode", "Postal Code is required"),
+        ],
+    )
+    def test_checkout_requires_each_field(
+        self, page: Page, field_to_leave_blank: str, expected_error: str
+    ):
+        """
+        Runs once per required checkout field (3 total runs). Each run
+        fills in every field EXCEPT the one under test, and confirms the
+        correct field-specific error message appears.
+        """
+        all_fields = {
+            "firstName": "Francesco",
+            "lastName": "Test",
+            "postalCode": "H2X1Y4",
+        }
+        # Remove the one field this run is testing, leaving it blank
+        fields_to_fill = {
+            key: value
+            for key, value in all_fields.items()
+            if key != field_to_leave_blank
+        }
+
         login(page, VALID_USERNAME, VALID_PASSWORD)
         page.click("[data-test='add-to-cart-sauce-labs-backpack']")
         page.click(".shopping_cart_link")
         page.click("[data-test='checkout']")
 
-        # Leave first name blank, try to continue
-        page.fill("[data-test='lastName']", "Test")
-        page.fill("[data-test='postalCode']", "H2X1Y4")
+        for field_name, value in fields_to_fill.items():
+            page.fill(f"[data-test='{field_name}']", value)
         page.click("[data-test='continue']")
 
         error = page.locator("[data-test='error']")
         expect(error).to_be_visible()
-        expect(error).to_contain_text("First Name is required")
+        expect(error).to_contain_text(expected_error)
 
 
 class TestOutOfStockHandling:
